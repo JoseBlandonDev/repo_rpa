@@ -1,0 +1,24 @@
+[Unit]
+Description=Sistema RPA - Automatización de correos electrónicos
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/rpa_system
+ExecStart=/root/rpa_system/venv/bin/python /root/rpa_system/rpa/main.py
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+EnvironmentFile=/root/rpa_system/.env
+
+# Configuración de seguridad
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/root/rpa_system
+
+[Install]
+WantedBy=multi-user.target 
