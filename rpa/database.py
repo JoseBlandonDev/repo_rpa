@@ -240,3 +240,30 @@ class Database:
         finally:
             if self.connection:
                 self.connection.close() 
+
+    def delete_old_records(self, days: int = 30) -> int:
+        """
+        Elimina los registros de rpa_records con más de 'days' días de antigüedad.
+        
+        Args:
+            days: Número de días de antigüedad para conservar los registros
+        Returns:
+            int: Número de registros eliminados
+        """
+        try:
+            self.connection = sqlite3.connect(self.db_path)
+            cursor = self.connection.cursor()
+            cursor.execute('''
+                DELETE FROM rpa_records
+                WHERE timestamp < datetime('now', ?)
+            ''', (f'-{days} days',))
+            deleted = cursor.rowcount
+            self.connection.commit()
+            logger.info(f"Registros eliminados por antigüedad (> {days} días): {deleted}")
+            return deleted
+        except Exception as e:
+            logger.error(f"Error eliminando registros antiguos: {str(e)}")
+            return 0
+        finally:
+            if self.connection:
+                self.connection.close() 

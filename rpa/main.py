@@ -6,7 +6,8 @@ Orquesta todo el flujo de lectura de correos, extracción de links y automatizac
 
 import os
 import logging
-from datetime import datetime
+import time
+from datetime import datetime, date
 from dotenv import load_dotenv
 
 # Importar módulos del sistema
@@ -25,14 +26,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def main():
+def process_emails():
     """
-    Función principal que orquesta todo el flujo del sistema RPA.
+    Función que procesa los correos electrónicos.
     """
     try:
         # Cargar variables de entorno
         load_dotenv()
-        logger.info("Iniciando sistema RPA...")
         
         # Inicializar componentes
         db = Database()
@@ -95,7 +95,50 @@ def main():
         
     except Exception as e:
         logger.error(f"Error general en el sistema: {str(e)}")
-        raise
+
+def should_run_cleanup(flag_path: str) -> bool:
+    """
+    Determina si debe ejecutarse la limpieza de la base de datos (una vez al día).
+    """
+    today = date.today().isoformat()
+    if not os.path.exists(flag_path):
+        return True
+    with open(flag_path, 'r') as f:
+        last_run = f.read().strip()
+    return last_run != today
+
+def update_cleanup_flag(flag_path: str):
+    """
+    Actualiza el archivo de marca de tiempo de limpieza.
+    """
+    today = date.today().isoformat()
+    with open(flag_path, 'w') as f:
+        f.write(today)
+
+def main():
+    """
+    Función principal que ejecuta el sistema RPA en modo continuo.
+    """
+    logger.info("Iniciando sistema RPA en modo continuo...")
+    cleanup_flag = "db_cleanup.flag"
+    db = Database()
+    while True:
+        try:
+            # Limpieza automática una vez al día
+            if should_run_cleanup(cleanup_flag):
+                eliminados = db.delete_old_records(days=30)
+                logger.info(f"Limpieza diaria: {eliminados} registros eliminados por antigüedad.")
+                update_cleanup_flag(cleanup_flag)
+            process_emails()
+            logger.info("Esperando 60 segundos antes del siguiente ciclo...")
+            time.sleep(60)  # Esperar 60 segundos (1 minuto)
+        except KeyboardInterrupt:
+            logger.info("Sistema detenido por el usuario")
+            break
+        except Exception as e:
+            logger.error(f"Error en el ciclo principal: {str(e)}")
+            logger.info("Esperando 60 segundos antes de reintentar...")
+            time.sleep(60)
 
 if __name__ == "__main__":
     main() 
