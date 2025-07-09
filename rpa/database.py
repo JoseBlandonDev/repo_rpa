@@ -10,6 +10,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 from dotenv import load_dotenv
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -285,6 +286,31 @@ class Database:
         except Exception as e:
             logger.error(f"Error eliminando registros antiguos: {str(e)}")
             return 0
+        finally:
+            if self.connection:
+                self.connection.close() 
+
+    def export_to_excel(self, excel_path: str = "reporte_rpa.xlsx") -> str:
+        """
+        Exporta las tablas rpa_success y rpa_failed a un archivo Excel con dos hojas.
+        Args:
+            excel_path: Ruta del archivo Excel a crear
+        Returns:
+            str: Ruta del archivo generado
+        """
+        try:
+            self.connection = sqlite3.connect(self.db_path)
+            # Leer ambas tablas a DataFrames
+            df_success = pd.read_sql_query("SELECT * FROM rpa_success", self.connection)
+            df_failed = pd.read_sql_query("SELECT * FROM rpa_failed", self.connection)
+            # Escribir a Excel con dos hojas
+            with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
+                df_success.to_excel(writer, sheet_name="Exitosos", index=False)
+                df_failed.to_excel(writer, sheet_name="Fallidos", index=False)
+            return excel_path
+        except Exception as e:
+            logger.error(f"Error exportando a Excel: {str(e)}")
+            return ""
         finally:
             if self.connection:
                 self.connection.close() 

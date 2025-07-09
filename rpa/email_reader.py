@@ -8,10 +8,13 @@ import os
 import re
 import logging
 from typing import List, Optional
-from imap_tools import MailBox, AND
+from imap_tools.mailbox import MailBox
+from imap_tools.query import AND
 from dotenv import load_dotenv
 import quopri
 from bs4 import BeautifulSoup
+from notifier import send_report_email
+from database import Database
 
 logger = logging.getLogger(__name__)
 
@@ -36,32 +39,22 @@ class EmailReader:
         if not self.email or not self.password:
             raise ValueError("EMAIL_ADDRESS y EMAIL_PASSWORD deben estar configurados en .env")
     
-    def get_unread_emails(self) -> List:
+    def get_unread_emails(self):
         """
-        Obtiene todos los correos no leídos que coincidan con el filtro de remitente.
-        
+        Obtiene los correos no leídos de la bandeja de entrada.
         Returns:
-            List: Lista de correos no leídos filtrados
+            list: Lista de objetos Email
         """
         try:
             with MailBox(self.imap_server).login(self.email, self.password) as mailbox:
-                # Filtrar correos no leídos del remitente específico
-                emails = mailbox.fetch(
-                    AND(
-                        seen=False,
-                        from_=self.sender_filter
-                    )
-                )
-                
-                # Convertir a lista para poder iterar múltiples veces
-                email_list = list(emails)
-                logger.info(f"Encontrados {len(email_list)} correos no leídos de {self.sender_filter}")
-                
-                return email_list
-                
+                emails = list(mailbox.fetch('(UNSEEN)', mark_seen=False, bulk=True))
+                logger.info(f"get_unread_emails: encontrados {len(emails)} correos no leídos.")
+                for email in emails:
+                    logger.info(f"Correo no leído: De: {email.from_} | Asunto: {email.subject}")
+                return emails
         except Exception as e:
-            logger.error(f"Error conectando al servidor IMAP: {str(e)}")
-            raise
+            logger.error(f"Error obteniendo correos no leídos: {str(e)}")
+            return []
     
     def extract_link_from_email(self, email) -> Optional[str]:
         """
@@ -114,3 +107,33 @@ class EmailReader:
         except Exception as e:
             logger.error(f"Error marcando correo como leído: {str(e)}")
             return False 
+
+    def process_report_requests(self, emails):
+        """
+        Procesa solicitudes de reporte y responde con el archivo Excel si corresponde.
+        Args:
+            emails: lista de emails no leídos
+        """
+        try:
+            with MailBox(self.imap_server).login(self.email, self.password) as mailbox:
+                for email in emails:
+                    logger.info(f"Revisando correo de {email.from_} con asunto: {email.subject}")
+                    if ("REPORTE" in email.subject.upper() or "REPORTE" in email.text.upper()):
+                        logger.info(f"Palabra clave 'REPORTE' detectada en el correo de {email.from_}")
+                        db = Database()
+                        excel_path = db.export_to_excel()
+                        if excel_path:
+                            send_report_email(email.from_, excel_path)
+                            logger.info(f"Reporte enviado a {email.from_}")
+                        else:
+                            logger.error("No se pudo generar el archivo Excel para el reporte.")
+                        # Marcar el correo como leído usando el flag estándar IMAP
+                        try:
+                            mailbox.flag(email.uid, '\\Seen', True)
+                            logger.info(f"Correo marcado como leído (UID: {email.uid}): {email.subject}")
+                        except Exception as e:
+                            logger.error(f"No se pudo marcar como leído: {str(e)}")
+                    else:
+                        logger.info(f"Correo de {email.from_} no contiene la palabra clave 'REPORTE'.")
+        except Exception as e:
+            logger.error(f"Error en process_report_requests: {str(e)}") 

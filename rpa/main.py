@@ -9,6 +9,8 @@ import logging
 import time
 from datetime import datetime, date
 from dotenv import load_dotenv
+from imap_tools.mailbox import MailBox
+from imap_tools.query import AND
 
 # Importar módulos del sistema
 from email_reader import EmailReader
@@ -42,15 +44,17 @@ def process_emails():
         # Leer correos no leídos
         logger.info("Leyendo correos no leídos...")
         emails = email_reader.get_unread_emails()
-        
-        if not emails:
-            logger.info("No se encontraron correos no leídos")
+        # Procesar solicitudes de reporte
+        email_reader.process_report_requests(emails)
+        # Filtrar correos que NO sean solicitudes de reporte
+        emails_to_process = [email for email in emails if not ("REPORTE" in email.subject.upper() or "REPORTE" in email.text.upper())]
+        if not emails_to_process:
+            logger.info("No se encontraron correos no leídos para procesar")
             return
-        
-        logger.info(f"Se encontraron {len(emails)} correos no leídos")
+        logger.info(f"Se encontraron {len(emails_to_process)} correos no leídos para procesar")
         
         # Procesar cada correo
-        for email in emails:
+        for email in emails_to_process:
             try:
                 # Extraer link del correo
                 link = email_reader.extract_link_from_email(email)

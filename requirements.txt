@@ -1,3 +1,5 @@
+pandas
+openpyxl
 python-dotenv==1.0.0
 imap-tools==1.5.0
 selenium==4.15.2
