@@ -1,6 +1,6 @@
 # Sistema de Automatización RPA
 
-Sistema automatizado para leer correos electrónicos, extraer links y realizar acciones web automáticamente.
+Sistema automatizado para leer correos electrónicos, extraer links y realizar acciones web automáticamente con capacidades de reportes y notificaciones.
 
 ## 🎯 ¿Qué hace el sistema?
 
@@ -10,25 +10,41 @@ Sistema automatizado para leer correos electrónicos, extraer links y realizar a
 4. **Abre páginas web** con Selenium (modo headless)
 5. **Hace clic en botones** usando selectores CSS configurables
 6. **Registra todo** en base de datos SQLite con logs detallados
+7. **Genera reportes** en formato Excel con estadísticas
+8. **Envía notificaciones** por email con reportes adjuntos
+9. **Maneja errores** y recuperación automática
 
 ## 📁 Estructura del proyecto
 
 ```
 rpa_system/
-├── main.py              # Archivo principal que orquesta todo
-├── email_reader.py      # Lectura de correos electrónicos
-├── driver_web.py        # Automatización web con Selenium
-├── database.py          # Manejo de base de datos SQLite
-├── requirements.txt     # Dependencias del proyecto
-├── env.example          # Ejemplo de configuración
-└── README.md           # Esta documentación
+├── rpa/                    # Módulo principal del sistema RPA
+│   ├── __init__.py         # Inicializador del módulo
+│   ├── main.py             # Archivo principal que orquesta todo
+│   ├── email_reader.py     # Lectura de correos electrónicos
+│   ├── driver_web.py       # Automatización web con Selenium
+│   ├── database.py         # Manejo de base de datos SQLite
+│   └── notifier.py         # Sistema de notificaciones por email
+├── config/                 # Configuraciones del sistema
+│   └── env.example         # Ejemplo de variables de entorno
+├── requirements.txt        # Dependencias del proyecto
+├── rpa_runner.sh          # Script de ejecución del sistema
+├── start_rpa_screen.sh    # Script para ejecutar en screen
+├── rpa_system.service     # Archivo de servicio systemd
+├── .gitignore             # Archivos a ignorar en Git
+├── db_cleanup.flag        # Flag para limpieza de base de datos
+├── rpa_system.log         # Logs del sistema
+├── rpa_database.db        # Base de datos SQLite
+├── reporte_rpa.xlsx       # Reporte generado por el sistema
+└── README.md              # Esta documentación
 ```
 
 ## 🚀 Instalación
 
-### 1. Clonar o descargar el proyecto
+### 1. Clonar el repositorio
 ```bash
-cd rpa_system
+git clone https://github.com/JoseBlandonDev/repo_rpa.git
+cd repo_rpa/rpa_system
 ```
 
 ### 2. Instalar dependencias
@@ -48,7 +64,7 @@ pip install webdriver-manager
 
 ### 4. Configurar variables de entorno
 ```bash
-cp env.example .env
+cp config/env.example .env
 nano .env
 ```
 
@@ -72,6 +88,15 @@ LINK_PATTERN=https?://[^\s<>"]+
 # Configuración del navegador web
 BUTTON_SELECTOR=button[type="submit"]
 TIMEOUT_SECONDS=10
+
+# Configuración de la base de datos
+DB_PATH=rpa_database.db
+
+# Configuración para notificaciones (opcional)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=tu_correo@gmail.com
+EMAIL_PASS=tu_contraseña_de_aplicacion
 ```
 
 ### 🔐 Configuración de Gmail
@@ -87,12 +112,35 @@ Para usar Gmail, necesitas una **contraseña de aplicación**:
 
 ### Ejecución manual
 ```bash
-python main.py
+python3 rpa/main.py
 ```
 
-### Probar el sistema
+### Ejecución con script
 ```bash
-python test_system.py
+chmod +x rpa_runner.sh
+./rpa_runner.sh
+```
+
+### Ejecución en background con screen
+```bash
+chmod +x start_rpa_screen.sh
+./start_rpa_screen.sh
+```
+
+### Ejecución como servicio systemd
+```bash
+# Copiar el archivo de servicio
+sudo cp rpa_system.service /etc/systemd/system/
+
+# Recargar systemd
+sudo systemctl daemon-reload
+
+# Habilitar y iniciar el servicio
+sudo systemctl enable rpa_system
+sudo systemctl start rpa_system
+
+# Verificar estado
+sudo systemctl status rpa_system
 ```
 
 ### Ejecución automática con cron
@@ -101,10 +149,10 @@ python test_system.py
 crontab -e
 
 # Agregar línea para ejecutar cada 5 minutos
-*/5 * * * * cd /ruta/a/rpa_system && python main.py >> /tmp/rpa.log 2>&1
+*/5 * * * * cd /ruta/a/rpa_system && python3 rpa/main.py >> /tmp/rpa.log 2>&1
 ```
 
-## 📊 Monitoreo
+## 📊 Monitoreo y Reportes
 
 ### Logs del sistema
 Los logs se guardan en `rpa_system.log` con información detallada de cada ejecución.
@@ -115,15 +163,35 @@ La base de datos `rpa_database.db` contiene:
 - Estado de cada procesamiento
 - Errores y observaciones
 - Estadísticas del sistema
+- Timestamps de ejecución
+
+### Reportes Excel
+El sistema genera automáticamente reportes en formato Excel (`reporte_rpa.xlsx`) con:
+- Estadísticas de procesamiento
+- Registros exitosos y fallidos
+- Resumen de actividades por fecha
+- Métricas de rendimiento
 
 ### Consultar estadísticas
 ```python
-from database import Database
+from rpa.database import Database
 
 db = Database()
 stats = db.get_statistics()
 print(f"Total registros: {stats['total_records']}")
 print(f"Registros de hoy: {stats['today_records']}")
+print(f"Procesos exitosos: {stats['successful_processes']}")
+print(f"Procesos fallidos: {stats['failed_processes']}")
+```
+
+### Notificaciones por email
+El sistema puede enviar reportes por email usando el módulo `notifier.py`:
+
+```python
+from rpa.notifier import send_report_email
+
+# Enviar reporte a un email específico
+send_report_email("destinatario@ejemplo.com", "reporte_rpa.xlsx")
 ```
 
 ## 🔧 Personalización
@@ -154,6 +222,15 @@ LINK_PATTERN=https://www\.netflix\.com/[^\s<>"]+
 LINK_PATTERN=https://example\.com/confirm/[^\s<>"]+
 ```
 
+### Configurar notificaciones
+```env
+# Configuración SMTP para notificaciones
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=tu_correo@gmail.com
+EMAIL_PASS=tu_contraseña_de_aplicacion
+```
+
 ## 🐛 Solución de problemas
 
 ### Error de conexión IMAP
@@ -168,23 +245,61 @@ LINK_PATTERN=https://example\.com/confirm/[^\s<>"]+
 
 ### Error de permisos
 ```bash
-chmod +x main.py
+chmod +x rpa_runner.sh
+chmod +x start_rpa_screen.sh
 chmod 600 .env
 ```
 
 ### Logs detallados
 ```bash
-python main.py --debug
+python3 rpa/main.py --debug
 ```
+
+### Verificar estado del servicio
+```bash
+sudo systemctl status rpa_system
+sudo journalctl -u rpa_system -f
+```
+
+### Limpiar base de datos
+```bash
+# Crear flag para limpieza
+echo "1" > db_cleanup.flag
+```
+
+## 📦 Dependencias
+
+El proyecto utiliza las siguientes dependencias principales:
+
+- **pandas**: Manipulación y análisis de datos
+- **openpyxl**: Generación de reportes Excel
+- **python-dotenv**: Manejo de variables de entorno
+- **imap-tools**: Lectura de correos electrónicos
+- **selenium**: Automatización web
+- **webdriver-manager**: Gestión automática de drivers
+- **beautifulsoup4**: Parsing de HTML
+
+## 🔮 Funcionalidades implementadas
+
+- ✅ **Sistema de base de datos** con SQLite
+- ✅ **Generación de reportes** en Excel
+- ✅ **Sistema de notificaciones** por email
+- ✅ **Logs detallados** del sistema
+- ✅ **Scripts de ejecución** automatizados
+- ✅ **Servicio systemd** para ejecución en background
+- ✅ **Manejo de errores** y recuperación
+- ✅ **Configuración flexible** con variables de entorno
 
 ## 🔮 Futuras mejoras
 
 - [ ] Bot de Telegram para administración
 - [ ] Interfaz web para monitoreo
-- [ ] Notificaciones por email/SMS
+- [ ] Notificaciones por SMS
 - [ ] Múltiples cuentas de correo
 - [ ] Procesamiento en paralelo
 - [ ] API REST para integración
+- [ ] Dashboard en tiempo real
+- [ ] Integración con servicios cloud
 
 ## 📝 Licencia
 
@@ -199,6 +314,13 @@ Las contribuciones son bienvenidas. Por favor:
 4. Push a la rama
 5. Abre un Pull Request
 
+## 📞 Soporte
+
+Para reportar bugs o solicitar nuevas funcionalidades, por favor:
+- Abre un issue en GitHub
+- Incluye logs detallados del error
+- Describe los pasos para reproducir el problema
+
 ---
 
-**Nota**: Este sistema está diseñado para funcionar en VPS sin interfaz gráfica y es compatible con futuras integraciones de Telegram. 
+**Nota**: Este sistema está diseñado para funcionar en VPS sin interfaz gráfica y es compatible con futuras integraciones de Telegram y otros servicios de mensajería. 
