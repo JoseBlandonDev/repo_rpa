@@ -31,15 +31,29 @@ class Database:
     
     def _create_table(self):
         """
-        Crea la tabla principal si no existe.
+        Crea las tablas principales si no existen.
         """
         try:
             self.connection = sqlite3.connect(self.db_path)
             cursor = self.connection.cursor()
-            
-            # Crear tabla principal
+
+            # Crear tabla para procesos exitosos
             cursor.execute('''
-                CREATE TABLE IF NOT EXISTS rpa_records (
+                CREATE TABLE IF NOT EXISTS rpa_success (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    sender TEXT NOT NULL,
+                    subject TEXT,
+                    link TEXT,
+                    status TEXT NOT NULL,
+                    observations TEXT,
+                    processing_time REAL
+                )
+            ''')
+
+            # Crear tabla para procesos fallidos
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS rpa_failed (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                     sender TEXT NOT NULL,
@@ -51,7 +65,7 @@ class Database:
                     processing_time REAL
                 )
             ''')
-            
+
             # Crear tabla de configuración
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS config (
@@ -60,51 +74,58 @@ class Database:
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
-            
+
             self.connection.commit()
-            logger.info("Tabla de base de datos creada/verificada exitosamente")
-            
+            logger.info("Tablas de base de datos creadas/verificadas exitosamente")
+
         except Exception as e:
-            logger.error(f"Error creando tabla: {str(e)}")
+            logger.error(f"Error creando tablas: {str(e)}")
             raise
         finally:
             if self.connection:
                 self.connection.close()
-    
-    def insert_record(self, sender: str, subject: str, link: str, 
-                     status: str, observations: str = "", 
-                     error_details: str = "", processing_time: float = 0.0) -> bool:
+
+    def insert_success_record(self, sender: str, subject: str, link: str, 
+                             status: str, observations: str = "", processing_time: float = 0.0) -> bool:
         """
-        Inserta un nuevo registro en la base de datos.
-        
-        Args:
-            sender: Remitente del correo
-            subject: Asunto del correo
-            link: Link extraído del correo
-            status: Estado del procesamiento (SUCCESS, FAILED, ERROR, NO_LINK)
-            observations: Observaciones del proceso
-            error_details: Detalles del error si ocurrió alguno
-            processing_time: Tiempo de procesamiento en segundos
-            
-        Returns:
-            bool: True si se insertó correctamente, False en caso contrario
+        Inserta un nuevo registro exitoso en la base de datos.
         """
         try:
             self.connection = sqlite3.connect(self.db_path)
             cursor = self.connection.cursor()
-            
             cursor.execute('''
-                INSERT INTO rpa_records 
+                INSERT INTO rpa_success 
+                (sender, subject, link, status, observations, processing_time)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (sender, subject, link, status, observations, processing_time))
+            self.connection.commit()
+            logger.info(f"Registro exitoso insertado: {sender} - {status}")
+            return True
+        except Exception as e:
+            logger.error(f"Error insertando registro exitoso: {str(e)}")
+            return False
+        finally:
+            if self.connection:
+                self.connection.close()
+
+    def insert_failed_record(self, sender: str, subject: str, link: str, 
+                            status: str, observations: str = "", error_details: str = "", processing_time: float = 0.0) -> bool:
+        """
+        Inserta un nuevo registro fallido en la base de datos.
+        """
+        try:
+            self.connection = sqlite3.connect(self.db_path)
+            cursor = self.connection.cursor()
+            cursor.execute('''
+                INSERT INTO rpa_failed 
                 (sender, subject, link, status, observations, error_details, processing_time)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (sender, subject, link, status, observations, error_details, processing_time))
-            
             self.connection.commit()
-            logger.info(f"Registro insertado: {sender} - {status}")
+            logger.info(f"Registro fallido insertado: {sender} - {status}")
             return True
-            
         except Exception as e:
-            logger.error(f"Error insertando registro: {str(e)}")
+            logger.error(f"Error insertando registro fallido: {str(e)}")
             return False
         finally:
             if self.connection:

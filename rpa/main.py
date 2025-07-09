@@ -61,19 +61,26 @@ def process_emails():
                     # Abrir link y hacer clic en botón
                     success = web_driver.click_button_on_page(link)
                     
-                    # Registrar en base de datos
-                    db.insert_record(
-                        sender=email.from_,
-                        subject=email.subject,
-                        link=link,
-                        status="SUCCESS" if success else "FAILED",
-                        observations="Procesado correctamente" if success else "Error al hacer clic en botón"
-                    )
-                    
+                    if success:
+                        db.insert_success_record(
+                            sender=email.from_,
+                            subject=email.subject,
+                            link=link,
+                            status="SUCCESS",
+                            observations="Procesado correctamente"
+                        )
+                    else:
+                        db.insert_failed_record(
+                            sender=email.from_,
+                            subject=email.subject,
+                            link=link,
+                            status="FAILED",
+                            observations="Error al hacer clic en botón"
+                        )
                     logger.info(f"Correo procesado: {email.subject}")
                 else:
                     logger.warning(f"No se pudo extraer link del correo: {email.subject}")
-                    db.insert_record(
+                    db.insert_failed_record(
                         sender=email.from_,
                         subject=email.subject,
                         link="",
@@ -83,12 +90,13 @@ def process_emails():
                     
             except Exception as e:
                 logger.error(f"Error procesando correo {email.subject}: {str(e)}")
-                db.insert_record(
+                db.insert_failed_record(
                     sender=email.from_,
                     subject=email.subject,
                     link="",
                     status="ERROR",
-                    observations=f"Error: {str(e)}"
+                    observations=f"Error: {str(e)}",
+                    error_details=str(e)
                 )
         
         logger.info("Proceso completado")
