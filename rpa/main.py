@@ -84,14 +84,8 @@ def process_emails():
                         )
                     logger.info(f"Correo procesado: {email.subject}")
                 else:
-                    logger.warning(f"No se pudo extraer link del correo: {email.subject}")
-                    db.insert_failed_record(
-                        sender=email.from_,
-                        subject=email.subject,
-                        link="",
-                        status="NO_LINK",
-                        observations="No se encontró link válido"
-                    )
+                    logger.info(f"Correo sin link válido, ignorando: {email.subject}")
+                    # No se registra en la base de datos, solo se marca como leído e ignora
                     
             except Exception as e:
                 logger.error(f"Error procesando correo {email.subject}: {str(e)}")
