@@ -41,14 +41,16 @@ class EmailReader:
     
     def get_unread_emails(self):
         """
-        Obtiene los correos no leídos de la bandeja de entrada.
+        Obtiene los correos no leídos de la bandeja de entrada que coincidan con el filtro de remitente.
         Returns:
             list: Lista de objetos Email
         """
         try:
             with MailBox(self.imap_server).login(self.email, self.password) as mailbox:
-                emails = list(mailbox.fetch('(UNSEEN)', mark_seen=False, bulk=True))
-                logger.info(f"get_unread_emails: encontrados {len(emails)} correos no leídos.")
+                # Buscar solo correos no leídos y del remitente filtrado
+                emails = [email for email in mailbox.fetch('(UNSEEN)', mark_seen=False, bulk=True)
+                          if email.from_.lower() == self.sender_filter.lower()]
+                logger.info(f"get_unread_emails: encontrados {len(emails)} correos no leídos del remitente filtrado.")
                 for email in emails:
                     logger.info(f"Correo no leído: De: {email.from_} | Asunto: {email.subject}")
                 return emails

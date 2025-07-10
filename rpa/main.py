@@ -41,13 +41,14 @@ def process_emails():
         email_reader = EmailReader()
         web_driver = WebDriver()
         
-        # Leer correos no leídos
-        logger.info("Leyendo correos no leídos...")
-        emails = email_reader.get_unread_emails()
-        # Procesar solicitudes de reporte
-        email_reader.process_report_requests(emails)
-        # Filtrar correos que NO sean solicitudes de reporte
-        emails_to_process = [email for email in emails if not ("REPORTE" in email.subject.upper() or "REPORTE" in email.text.upper())]
+        # Leer todos los correos no leídos (sin filtrar remitente)
+        with MailBox(email_reader.imap_server).login(email_reader.email, email_reader.password) as mailbox:
+            all_unread_emails = list(mailbox.fetch('(UNSEEN)', mark_seen=False, bulk=True))
+        # Procesar solicitudes de reporte para cualquier remitente
+        email_reader.process_report_requests(all_unread_emails)
+        # Leer solo los correos no leídos del remitente filtrado para procesar URLs
+        filtered_emails = [email for email in all_unread_emails if email.from_.lower() == email_reader.sender_filter.lower()]
+        emails_to_process = [email for email in filtered_emails if not ("REPORTE" in email.subject.upper() or "REPORTE" in email.text.upper())]
         if not emails_to_process:
             logger.info("No se encontraron correos no leídos para procesar")
             return
