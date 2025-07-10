@@ -43,7 +43,7 @@ def process_emails():
         
         # Leer todos los correos no leídos (sin filtrar remitente)
         with MailBox(email_reader.imap_server).login(email_reader.email, email_reader.password) as mailbox:
-            all_unread_emails = list(mailbox.fetch('(UNSEEN)', mark_seen=False, bulk=True))
+            all_unread_emails = list(mailbox.fetch('(UNSEEN)', mark_seen=True, bulk=True))
         # Procesar solicitudes de reporte para cualquier remitente
         email_reader.process_report_requests(all_unread_emails)
         # Leer solo los correos no leídos del remitente filtrado para procesar URLs

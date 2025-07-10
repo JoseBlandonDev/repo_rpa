@@ -48,7 +48,7 @@ class EmailReader:
         try:
             with MailBox(self.imap_server).login(self.email, self.password) as mailbox:
                 # Buscar solo correos no leídos y del remitente filtrado
-                emails = [email for email in mailbox.fetch('(UNSEEN)', mark_seen=False, bulk=True)
+                emails = [email for email in mailbox.fetch('(UNSEEN)', mark_seen=True, bulk=True)
                           if email.from_.lower() == self.sender_filter.lower()]
                 logger.info(f"get_unread_emails: encontrados {len(emails)} correos no leídos del remitente filtrado.")
                 for email in emails:
