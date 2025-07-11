@@ -7,6 +7,7 @@ Orquesta todo el flujo de lectura de correos, extracción de links y automatizac
 import os
 import logging
 import time
+import shutil
 from datetime import datetime, date
 from dotenv import load_dotenv
 from imap_tools.mailbox import MailBox
@@ -27,6 +28,65 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+def cleanup_selenium_cache():
+    """
+    Limpia el cache de Selenium para liberar espacio en disco.
+    """
+    try:
+        selenium_cache = os.path.expanduser("~/.cache/selenium")
+        if os.path.exists(selenium_cache):
+            # Limpiar directorios de Chrome
+            chrome_dir = os.path.join(selenium_cache, "chrome", "linux64")
+            chromedriver_dir = os.path.join(selenium_cache, "chromedriver", "linux64")
+            
+            if os.path.exists(chrome_dir):
+                for item in os.listdir(chrome_dir):
+                    item_path = os.path.join(chrome_dir, item)
+                    if os.path.isdir(item_path):
+                        shutil.rmtree(item_path)
+                        logger.info(f"Directorio de Chrome eliminado: {item}")
+            
+            if os.path.exists(chromedriver_dir):
+                for item in os.listdir(chromedriver_dir):
+                    item_path = os.path.join(chromedriver_dir, item)
+                    if os.path.isdir(item_path):
+                        shutil.rmtree(item_path)
+                        logger.info(f"Directorio de ChromeDriver eliminado: {item}")
+            
+            logger.info("Cache de Selenium limpiado exitosamente")
+        else:
+            logger.info("No se encontró cache de Selenium para limpiar")
+            
+    except Exception as e:
+        logger.error(f"Error limpiando cache de Selenium: {str(e)}")
+
+def should_cleanup_selenium(flag_path: str) -> bool:
+    """
+    Determina si debe ejecutarse la limpieza de Selenium (cada 7 días).
+    """
+    today = date.today().isoformat()
+    if not os.path.exists(flag_path):
+        return True
+    
+    with open(flag_path, 'r') as f:
+        last_run = f.read().strip()
+    
+    # Calcular días desde la última limpieza
+    try:
+        last_date = date.fromisoformat(last_run)
+        days_diff = (date.today() - last_date).days
+        return days_diff >= 7
+    except:
+        return True
+
+def update_selenium_cleanup_flag(flag_path: str):
+    """
+    Actualiza el archivo de marca de tiempo de limpieza de Selenium.
+    """
+    today = date.today().isoformat()
+    with open(flag_path, 'w') as f:
+        f.write(today)
 
 def process_emails():
     """
@@ -124,28 +184,25 @@ def update_cleanup_flag(flag_path: str):
 
 def main():
     """
-    Función principal que ejecuta el sistema RPA en modo continuo.
+    Función principal que ejecuta el sistema RPA una sola vez (sin bucle infinito).
     """
-    logger.info("Iniciando sistema RPA en modo continuo...")
+    logger.info("Iniciando sistema RPA en modo ciclo único...")
     cleanup_flag = "db_cleanup.flag"
+    selenium_cleanup_flag = "selenium_cleanup.flag"
     db = Database()
-    while True:
-        try:
-            # Limpieza automática una vez al día
-            if should_run_cleanup(cleanup_flag):
-                eliminados = db.delete_old_records(days=30)
-                logger.info(f"Limpieza diaria: {eliminados} registros eliminados por antigüedad.")
-                update_cleanup_flag(cleanup_flag)
-            process_emails()
-            logger.info("Esperando 60 segundos antes del siguiente ciclo...")
-            time.sleep(60)  # Esperar 60 segundos (1 minuto)
-        except KeyboardInterrupt:
-            logger.info("Sistema detenido por el usuario")
-            break
-        except Exception as e:
-            logger.error(f"Error en el ciclo principal: {str(e)}")
-            logger.info("Esperando 60 segundos antes de reintentar...")
-            time.sleep(60)
+    
+    # Limpieza automática de base de datos una vez al día
+    if should_run_cleanup(cleanup_flag):
+        eliminados = db.delete_old_records(days=30)
+        logger.info(f"Limpieza diaria: {eliminados} registros eliminados por antigüedad.")
+        update_cleanup_flag(cleanup_flag)
+    
+    # Limpieza automática de Selenium cada 7 días
+    if should_cleanup_selenium(selenium_cleanup_flag):
+        cleanup_selenium_cache()
+        update_selenium_cleanup_flag(selenium_cleanup_flag)
+    
+    process_emails()
 
 if __name__ == "__main__":
     main() 

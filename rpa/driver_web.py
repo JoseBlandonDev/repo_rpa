@@ -56,6 +56,20 @@ class WebDriver:
         chrome_options.add_argument('--disable-images')
         # chrome_options.add_argument('--disable-javascript')  # Descomenta si no necesitas JS
         
+        # Configuraciones para evitar descargas automáticas
+        chrome_options.add_argument('--disable-background-downloads')
+        chrome_options.add_argument('--disable-background-networking')
+        chrome_options.add_argument('--disable-background-timer-throttling')
+        chrome_options.add_argument('--disable-backgrounding-occluded-windows')
+        chrome_options.add_argument('--disable-renderer-backgrounding')
+        chrome_options.add_argument('--disable-features=TranslateUI')
+        chrome_options.add_argument('--disable-ipc-flooding-protection')
+        
+        # Configuración para usar cache local y evitar descargas
+        chrome_options.add_argument('--disable-component-update')
+        chrome_options.add_argument('--disable-default-apps')
+        chrome_options.add_argument('--disable-sync')
+        
         try:
             driver = webdriver.Chrome(options=chrome_options)
             driver.set_page_load_timeout(self.timeout)
